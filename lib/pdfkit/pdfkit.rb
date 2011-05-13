@@ -101,16 +101,22 @@ class PDFKit
     end
 
     def style_tag_for(stylesheet)
-      "<style>#{expand_stylesheet_urls(File.read(stylesheet))}</style>"
+      "<style>#{expand_stylesheet_urls(File.read(stylesheet), File.dirname(stylesheet).gsub(/.*?public/, "#{site_root.gsub(/\/$/, '')}"))}</style>"
     end
 
     def javascript_tag_for(javascript)
       "<script type='text/javascript'>#{File.read(javascript)}</script>"
     end
 
-    def expand_stylesheet_urls(source)
-      source.to_s.gsub(/url\(['"]?\/([^)]+)['"]?\)/) do
-        path = "#{site_root}#{$1}"
+    def expand_stylesheet_urls(source, root = nil)
+      if root
+        root = root.gsub(/\/[^\/]*?$/, '')
+      end
+
+      source.to_s.gsub(/url\(['"]?([.]{2})?\/([^)]+)['"]?\)/) do
+        path_root = root
+        path_root = site_root unless $1
+        path = File.join(path_root, $2)
         "url('#{path}')"
       end
     end
@@ -177,4 +183,6 @@ class PDFKit
     end
 
 end
+
+
 
