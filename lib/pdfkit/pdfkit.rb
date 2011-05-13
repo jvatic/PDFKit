@@ -17,7 +17,7 @@ class PDFKit
   attr_accessor :source, :stylesheets
   attr_reader :options
 
-  def initialize(url_file_or_html, options = {})
+  def initialize(url_file_or_html, options = {}, env = nil)
     @source = Source.new(url_file_or_html)
 
     @stylesheets = []
@@ -25,6 +25,8 @@ class PDFKit
     @options = PDFKit.configuration.default_options.merge(options)
     @options.merge! find_options_in_meta(url_file_or_html) unless source.url?
     @options = normalize_options(@options)
+
+    @env = env
 
     raise NoExecutableError.new unless File.exists?(PDFKit.configuration.wkhtmltopdf)
   end
@@ -62,7 +64,7 @@ class PDFKit
     invoke = args.join(' ')
 
     result = IO.popen(invoke, "w+") do |pdf|
-      pdf.puts(@source.to_s) if @source.html?
+      pdf.puts(expand_links(@source.to_s)) if @source.html?
       pdf.close_write
       pdf.gets(nil)
     end
@@ -99,7 +101,43 @@ class PDFKit
     end
 
     def style_tag_for(stylesheet)
-      "<style>#{File.read(stylesheet)}</style>"
+      "<style>#{expand_stylesheet_urls(File.read(stylesheet))}</style>"
+    end
+
+    def javascript_tag_for(javascript)
+      "<script type='text/javascript'>#{File.read(javascript)}</script>"
+    end
+
+    def expand_stylesheet_urls(source)
+      source.to_s.gsub(/url\(['"]?\/([^)]+)['"]?\)/) do
+        path = "#{site_root}#{$1}"
+        "url('#{path}')"
+      end
+    end
+
+    def expand_links(source)
+      return source unless @source.html?
+      
+      source.to_s.gsub(/<(link|script|a|img)(.*?)(href|src)=['"]\/([^'"]+)(\?\d+)['"]([^>])*>(?:<\/\1>)?/) do
+        path = File.join(Rails.root, 'public', $4)
+
+        case $1
+          when 'link'
+            style_tag_for(path)
+          when 'script'
+            javascript_tag_for(path)
+          when 'a', 'img'
+            "<#{$1} #{$2} #{$3}='#{site_root}#{$4}#{$5}' #{$6}>"
+        end
+      end
+    end
+
+    def site_root
+      if @env
+        "#{@env['rack.url_scheme']}://#{@env['HTTP_HOST']}/"
+      else
+        '/'
+      end
     end
 
     def append_stylesheets
@@ -139,3 +177,4 @@ class PDFKit
     end
 
 end
+

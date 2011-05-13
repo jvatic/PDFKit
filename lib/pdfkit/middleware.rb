@@ -17,7 +17,7 @@ class PDFKit
       if rendering_pdf? && headers['Content-Type'] =~ /text\/html|application\/xhtml\+xml/
         @render_pdf = nil
         body = response.respond_to?(:body) ? response.body : response.join
-        body = PDFKit.new(translate_paths(body, env), @options).to_pdf
+        body = PDFKit.new(body, @options, env).to_pdf
         response = [body]
 
         # Do not cache PDFs
@@ -32,14 +32,6 @@ class PDFKit
     end
 
     private
-
-    # Change relative paths to absolute
-    def translate_paths(body, env)
-      # Host with protocol
-      root = "#{env['rack.url_scheme']}://#{env['HTTP_HOST']}/"
-
-      body.gsub(/(href|src)=(['"])\/([^\"']*|[^"']*)['"]/, '\1=\2' + root + '\3\2')
-    end
 
     def rendering_pdf?
       @render_pdf
@@ -76,3 +68,4 @@ class PDFKit
 
   end
 end
+
